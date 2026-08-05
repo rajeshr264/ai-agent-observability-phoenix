@@ -33,7 +33,7 @@ There is no separate test suite, lint config, or build step — the notebook's o
 *is* the test. Requires `.env` in the repo root (gitignored) with `CONFLUENCE_URL`,
 `CONFLUENCE_USERNAME`, `CONFLUENCE_API_TOKEN`, `CONFLUENCE_SPACE_KEY`, and (cloud mode only)
 `OPENAI_API_KEY`. Requires a running local Ollama daemon with `qwen2.5`, `nomic-embed-text`, and
-`mistral-nemo:12b` pulled for local mode (the default).
+`gemma2:9b` pulled for local mode (the default).
 
 ## Editing the notebook
 
@@ -53,9 +53,9 @@ an empty dataframe as the symptom.
 14 numbered sections, config-driven by two toggles in the "Configuration" cell:
 
 - `LOCAL_MODE` (`True`/`False`) — switches the generation LLM, embedding model, *and* eval judge
-  between Ollama (`qwen2.5` / `nomic-embed-text` / `mistral-nemo:12b`) and OpenAI
+  between Ollama (`qwen2.5` / `nomic-embed-text` / `gemma2:9b`) and OpenAI
   (`gpt-4o-mini` / `text-embedding-3-small` / `gpt-4o-mini`). The judge is deliberately a **different**
-  model from the generator in local mode (`mistral-nemo:12b` vs `qwen2.5`) — using the same model to
+  model from the generator in local mode (`gemma2:9b` vs `qwen2.5`) — using the same model to
   judge its own output is self-preference bias, one of the reliability problems this lab exists to
   demonstrate.
 - Confluence credentials, loaded from `.env` via `load_dotenv()`, with interactive prompt fallback.
@@ -93,16 +93,29 @@ API defaults to `False`) so a trainee alt-tabbing to the Phoenix UI sees the ann
 instead of hitting a confusing "it's not there yet."
 
 The lab's actual conclusion deliberately rests on a **deterministic** check
-(`deterministic_deprecation_check`, a plain metadata-set intersection), not the LLM judges — the local
-judge (`mistral-nemo:12b`) is measurably inconsistent run-to-run on `FaithfulnessEvaluator`
-specifically (confirmed empirically: ~2/3 "faithful", ~1/3 "unfaithful" on identical input), and the
-notebook frames this inconsistency as an intentional, visible teaching point about LLM-judge
-reliability rather than something to hide.
+(`deterministic_deprecation_check`, a plain metadata-set intersection), not the LLM judges. The
+judge model itself went through a reliability check before being picked: the first candidate,
+`mistral-nemo:12b`, was measurably inconsistent run-to-run on `FaithfulnessEvaluator` specifically
+(confirmed empirically over 10 repeated trials per failure case: solid on one case, 8/10 "faithful"
+vs. 2/10 "unfaithful" on the other, identical input each time). `gemma2:9b` was tested the same way
+and came back fully consistent (10/10) on both cases, so it replaced `mistral-nemo:12b` as the
+default judge. That history, not just the general LLM-judge-reliability literature, is why the lab
+frames judge output as something to cross-check rather than trust outright — a judge that looks
+consistent in one test still isn't ground truth.
 
 Datasets & Experiments (`client.datasets.create_dataset`, `client.experiments.run_experiment`) are
 Phoenix's idiomatic side-by-side comparison feature but are **intentionally left as an optional
 take-home pointer** in the stretch section, not built into the required lab — the existing pandas
 before/after table is the required comparison mechanism.
+
+## Narrative framing
+
+The notebook's title cell and the README both open with a short, deliberately anonymized story
+based on a real reported case of a support chatbot serving a stale policy page that contradicted
+itself, with the company losing the resulting dispute — the same failure shape this lab teaches
+(old page crowds out current page, judge misses it, deterministic check catches it). No company
+name, person's name, court name, or citation appears in either version — keep it that way in any
+future edit; the point is the failure mechanism, not the specific case.
 
 ## Content-engineering notes (why the seed pages look the way they do)
 

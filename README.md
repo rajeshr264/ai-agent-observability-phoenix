@@ -16,6 +16,26 @@ cloud API keys, not even for the eval judge. This makes it good workshop materia
 the whole lab on their own MacBooks. A cloud mode using OpenAI is also here, written up for Colab
 and for PR reviewers, since Colab cannot keep an Ollama daemon running.
 
+### Why this lab exists
+
+A real customer once asked a real company's support chatbot about a bereavement discount. The
+bot said he could apply for it after he flew, within 90 days of the fare. He booked, he flew, he
+filed the claim. The company said no.
+
+Here is the part that matters: the bot's own answer linked to the policy page it was quoting.
+That page said the opposite — apply before you travel, not after. The bot's answer and its own
+source contradicted each other, in the same reply, on the same site.
+
+The company argued the bot was a separate legal entity, answerable for its own words. A tribunal
+disagreed and ruled for the customer.
+
+This was not a hallucination. The bot did not invent a policy. It retrieved real text and served
+the wrong version of it, with full confidence. An old policy page and its current replacement sat
+side by side in the same knowledge base, and the bot picked the old one.
+
+This lab reproduces that exact failure — an old page that crowds out its current replacement — on
+a dummy Confluence wiki, so you can catch it, trace it, and fix it yourself.
+
 ### Architecture
 
 Here is the flow, from wiki page to judged answer:
@@ -47,7 +67,7 @@ Here is the flow, from wiki page to judged answer:
       ▼
  RESPONSE
       │
-      ├──────────────► DocumentRelevanceEvaluator  (LLM judge: mistral-nemo:12b
+      ├──────────────► DocumentRelevanceEvaluator  (LLM judge: gemma2:9b
       │                 scores the retrieved page                or gpt-4o-mini)
       │
       ├──────────────► FaithfulnessEvaluator       (same LLM judge)
@@ -67,7 +87,7 @@ Here is the flow, from wiki page to judged answer:
 ```
 
 The generation model and the judge model are never the same model in local
-mode (`qwen2.5` writes, `mistral-nemo:12b` judges) — a model should not grade
+mode (`qwen2.5` writes, `gemma2:9b` judges) — a model should not grade
 its own work.
 
 ### Prerequisites
@@ -75,9 +95,10 @@ its own work.
 **For local mode (the default, no API keys):**
 - [Ollama](https://ollama.com), installed and running
 - Pull these models: `ollama pull qwen2.5`, `ollama pull nomic-embed-text`, and
-  `ollama pull mistral-nemo:12b`. Use `mistral-nemo:12b` as the judge — a different model from the
-  one that writes the answer, so it never judges its own work. It is a big pull, about 7GB, so
-  fetch it before a live session.
+  `ollama pull gemma2:9b`. Use `gemma2:9b` as the judge — a different model from the one that
+  writes the answer, so it never judges its own work. It replaced an earlier judge,
+  `mistral-nemo:12b`, after a side-by-side reliability test found it steadier (see "Known limit"
+  below).
 - 16GB or more of unified memory (M2/M3 class Apple Silicon)
 - A free Atlassian Cloud site (it bundles Jira and Confluence, free for up to 10 users, no card
   needed — sign up at [atlassian.com](https://www.atlassian.com)). Fill a Confluence space with the
@@ -87,11 +108,13 @@ its own work.
 **For cloud mode (an alternate path, for example Colab):**
 - An `OPENAI_API_KEY`. It covers both the writer and the judge in this mode.
 
-**Known limit — we do not hide it:** the local judge (`mistral-nemo:12b`) is less steady than a
-cloud judge. In tests, `FaithfulnessEvaluator` gave different verdicts on the same input, run after
-run: about 2 in 3 "faithful," about 1 in 3 "unfaithful." We leave this in view on purpose. The
-notebook shows it live as proof that LLM judges can be unreliable — a March 2026 RAND study found
-the same thing — not as a bug to hide. It is also why the lab's real verdict rests on the
+**Known limit — we do not hide it:** a local judge is less steady than a cloud judge, and we
+tested that before picking one. The first local judge we tried, `mistral-nemo:12b`, gave different
+`FaithfulnessEvaluator` verdicts on the same input, run after run: 10 for 10 "faithful" on one
+failure case, but 8 "faithful" and 2 "unfaithful" on the other. We ran the same test on `gemma2:9b`,
+the judge this lab uses now, and it came back fully steady — 10 for 10 — on both cases. That is not
+proof `gemma2:9b` is always right: a March 2026 RAND study found no LLM judge holds up across the
+board, so we still do not treat its score as truth. It is why the lab's real verdict rests on the
 deterministic check, not on the judge.
 
 ### Setup
