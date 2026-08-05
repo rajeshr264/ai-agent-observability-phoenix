@@ -108,6 +108,41 @@ uv run jupyter notebook notebooks/rag_confluence_failure_diagnosis.ipynb
 In the notebook's config cell, set `LOCAL_MODE = True` (the default) or `False`. This switches
 both the model that writes answers and the model that judges them, between Ollama and OpenAI.
 
+### Walkthrough: from the notebook to the trap in Phoenix
+
+Follow these steps in order. Each one names the notebook section to run and what to check
+for in the Phoenix UI.
+
+1. **Run "Setup & install" and "Configuration"** (sections 1-2). This installs packages and
+   sets `LOCAL_MODE`.
+2. **Run "Phoenix instrumentation"** (section 3). This starts the Phoenix server and prints a
+   link. Open that link now and keep the tab open for the rest of the lab.
+3. **Run "Confluence ingestion"** (section 4). This pulls the 19 dummy wiki pages and marks two
+   of them, on purpose, as deprecated.
+4. **Run "Naive index construction"** (section 5). This builds the index at
+   `similarity_top_k=1` — narrow on purpose, so a stale page can beat its replacement.
+5. **Run "Trigger the failure"** (section 6). This asks a real question and sets the trap: the
+   index may hand back the old, deprecated runbook instead of the current one, and the model
+   writes a sure, wrong answer.
+6. **Switch to Phoenix and open the trace.** Find the trace named `exercise1_naive_trigger`,
+   open it, and click the `VectorIndexRetriever.retrieve` span. You will see the retrieved
+   page's title and text right there on the span.
+7. **Run "Evals"** (section 8). This scores the retrieved page and the answer with an LLM
+   judge, and also runs a plain code check against a known list of stale pages. Watch the
+   printed output: the judge often calls the answer relevant and faithful, while the code
+   check fails it.
+8. **Refresh the Phoenix trace.** The same span you opened in step 6 now carries
+   `document_relevance`, `deprecation_check`, and `faithfulness` annotations. This is the trap,
+   made visible: two judges disagree, and the plain check is the one telling the truth.
+9. **Read "Diagnosis"** (section 9) for a plain account of what went wrong and why the judge
+   missed it.
+10. **Do Exercise 1** (section 10). Add a metadata filter that drops deprecated pages, then run
+    the same query again. Check Phoenix for the new trace: the retriever span now points at the
+    current page, and its `deprecation_check` annotation should read "current."
+11. **Read "Before/after comparison"** (section 11) for both runs side by side in one table.
+12. **Do Exercise 2 on your own** (section 12) — the same steps above, but for the
+    password-reset trap, with no worked example to lean on.
+
 ### Status
 
 This is first a personal and workshop project. Whether it becomes a pull request to the Phoenix
