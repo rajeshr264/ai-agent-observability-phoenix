@@ -16,6 +16,60 @@ cloud API keys, not even for the eval judge. This makes it good workshop materia
 the whole lab on their own MacBooks. A cloud mode using OpenAI is also here, written up for Colab
 and for PR reviewers, since Colab cannot keep an Ollama daemon running.
 
+### Architecture
+
+Here is the flow, from wiki page to judged answer:
+
+```
+ CONFLUENCE (dummy "Meridian Analytics" wiki, ENG space, 19 pages)
+      │
+      │  ConfluenceReader (Basic Auth: user_name + password/API token)
+      ▼
+ CLEAN + FILTER  (strip stray "#"/emoji from titles, keep only EXPECTED_TITLES)
+      │
+      │  embed  (Ollama nomic-embed-text  or  OpenAI text-embedding-3-small)
+      ▼
+ VECTORSTOREINDEX  (similarity_top_k=1 — narrow on purpose, so a stale
+                     page can beat its replacement and the failure shows up)
+      │
+      │
+      ▼                                    ┌─ run_traced_query() wraps every
+ TRIGGER QUERY  ──────────────────────────► │  step below in one OTel span,
+ e.g. "What is the current procedure          so all spans share one trace_id
+  for failing over our primary database?"   └─
+      │
+      ▼
+ RETRIEVER  → picks the top-scoring page (may be the stale one)
+      │
+      ▼
+ GENERATION LLM  (Ollama qwen2.5  or  OpenAI gpt-4o-mini)  → writes the answer
+      │
+      ▼
+ RESPONSE
+      │
+      ├──────────────► DocumentRelevanceEvaluator  (LLM judge: mistral-nemo:12b
+      │                 scores the retrieved page                or gpt-4o-mini)
+      │
+      ├──────────────► FaithfulnessEvaluator       (same LLM judge)
+      │                 scores the answer against the retrieved page
+      │
+      └──────────────► deterministic_deprecation_check  (plain code, no LLM —
+                        checks the retrieved page's title against a known list
+                        of stale pages; this is the check the lab trusts most)
+      │
+      ▼
+ add_document_annotation() / add_span_annotation()  (sync=True)
+      writes every judge score and the code check back onto the trace
+      │
+      ▼
+ PHOENIX UI  — open the trace and see the query, the retrieved page, the
+               answer, and every score, all in one place
+```
+
+The generation model and the judge model are never the same model in local
+mode (`qwen2.5` writes, `mistral-nemo:12b` judges) — a model should not grade
+its own work.
+
 ### Prerequisites
 
 **For local mode (the default, no API keys):**
