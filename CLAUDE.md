@@ -108,14 +108,32 @@ Phoenix's idiomatic side-by-side comparison feature but are **intentionally left
 take-home pointer** in the stretch section, not built into the required lab — the existing pandas
 before/after table is the required comparison mechanism.
 
+`DEPRECATED_TITLES` (the hand-set Python set driving `deterministic_deprecation_check` and the
+Exercise 1/2 metadata-filter fix) is a deliberate demo simplification, not a claim that real wikis
+come with a "deprecated" flag — the comment above it says so directly. Section 13, a stretch
+section, tests that simplification against real Confluence signals: `ConfluenceReader` already
+puts Confluence's own `status` field into `d.metadata["status"]` (before this notebook overwrites
+it), and it will almost always read `"current"` for both the old and new page in a pair, since the
+old page was never formally archived — that's the same root cause as the opening story, not a
+Confluence limitation. The section then pulls a real signal instead, `version.when` (last-modified
+timestamp) and page labels, via `reader.confluence` (the `atlassian-python-api` client
+`ConfluenceReader` wraps internally) — pseudocode only, matching the dual-judge stretch section's
+style, since it needs a live Confluence space with real version history to run meaningfully.
+
 ## Narrative framing
 
-The notebook's title cell and the README both open with a short, deliberately anonymized story
-based on a real reported case of a support chatbot serving a stale policy page that contradicted
-itself, with the company losing the resulting dispute — the same failure shape this lab teaches
-(old page crowds out current page, judge misses it, deterministic check catches it). No company
-name, person's name, court name, or citation appears in either version — keep it that way in any
-future edit; the point is the failure mechanism, not the specific case.
+The notebook's intro (title cell, then dedicated "The Story" and "The Tools" cells) and the
+README both open with a short, deliberately anonymized story based on a real reported case of a
+support chatbot serving a stale policy page that contradicted itself, with the company losing the
+resulting dispute — the same failure shape this lab teaches (old page crowds out current page,
+judge misses it, deterministic check catches it). No company name, person's name, court name, or
+citation appears in either version — keep it that way in any future edit; the point is the failure
+mechanism, not the specific case.
+
+The intro used to be one large markdown cell; it's now six separate cells (Title, The Story, The
+Tools, Architecture, Prerequisites, Known limitations) so each topic is independently readable and
+navigable in Jupyter, before the numbered "1. Setup & install" flow starts. Keep new intro content
+in its own cell rather than growing one of these back into a multi-topic wall of text.
 
 ## Content-engineering notes (why the seed pages look the way they do)
 
