@@ -9,8 +9,9 @@ It builds a RAG pipeline over a dummy Confluence wiki, deliberately reproduces a
 failure (a stale runbook page crowding out its current replacement), then uses Arize Phoenix's tracing
 and eval tooling to catch and diagnose it, with results logged back onto the actual trace as annotations
 (visible in the Phoenix UI, not just printed). Trainees fix the failure themselves in two guided
-exercises. There is no application code outside the notebook — `data/confluence_seed_pages.md` is the
-only other non-trivial file (seed content for the dummy Confluence space).
+exercises. There is no application code outside the notebook — `data/confluence_seed_pages.md` (seed
+content for the dummy Confluence space) and `docs/screenshots/*.png` (real Phoenix UI screenshots,
+embedded in both the notebook and README) are the only other non-trivial files.
 
 Runs fully locally by default (Ollama on Apple Silicon) so trainees need zero cloud API keys, including
 for the eval judge. Cloud (OpenAI) mode is a documented alternate path for Colab / PR-reviewer readers.
@@ -19,7 +20,7 @@ for the eval judge. Cloud (OpenAI) mode is a documented alternate path for Colab
 
 ```bash
 uv sync                                                          # install/update deps from pyproject.toml
-uv run jupyter notebook notebooks/rag_confluence_failure_diagnosis.ipynb   # open the lab
+uv run jupyter notebook --notebook-dir=. notebooks/rag_confluence_failure_diagnosis.ipynb   # open the lab
 uv add <package>                                                 # add a new dependency (updates pyproject.toml + uv.lock)
 
 # Non-interactive full-notebook execution (used for verifying edits, not for normal lab use):
@@ -28,6 +29,12 @@ uv run jupyter nbconvert --to notebook --execute \
     --output rag_confluence_failure_diagnosis.executed.ipynb
 rm notebooks/rag_confluence_failure_diagnosis.executed.ipynb     # always clean up the executed copy after inspecting it — never commit it
 ```
+
+**`--notebook-dir=.` is required, not cosmetic.** Passing a notebook file path to `jupyter notebook`
+roots its file server on that file's own directory (`notebooks/`), not your shell's cwd. The
+notebook's screenshot links (`../docs/screenshots/...`) point one level above that root, so
+without this flag Jupyter refuses to serve them and they render as broken images even though the
+files are present on disk.
 
 There is no separate test suite, lint config, or build step — the notebook's own end-to-end execution
 *is* the test. Requires `.env` in the repo root (gitignored) with `CONFLUENCE_URL`,
@@ -117,6 +124,37 @@ document via `client.spans.add_document_annotation(...)`, and a `faithfulness` a
 wrapper span via `client.spans.add_span_annotation(...)`. Both calls use `sync=True` explicitly (the
 API defaults to `False`) so a trainee alt-tabbing to the Phoenix UI sees the annotation immediately
 instead of hitting a confusing "it's not there yet."
+
+**`deprecation_check` is written successfully but never rendered anywhere in the Phoenix UI —
+confirmed empirically (v19.15–19.18), not a guess.** Phoenix's trace-detail Info tab only builds a
+dedicated "Retrieval Metrics" widget (ndcg/precision/hit) for the `document_relevance` annotation
+name specifically; a custom annotation name is stored (the write succeeds, no error) but has no
+generic display anywhere in the trace view, the spans table, or the project-level annotation
+summary. `/v1/document_annotations` is POST-only in the REST API, and the Python client's
+`get_span_annotations`/`get_span_annotations_dataframe` do not return document-level annotations
+either — there is currently no read path for them at all outside GraphQL introspection. The
+notebook's section 8 and README's walkthrough step 8 say this explicitly now; don't let a future
+edit reintroduce a claim that `deprecation_check` is UI-visible.
+
+**The fixed response (Exercise 1) is now also traced and annotated, not just printed.** It used to
+call `fixed_query_engine.query(...)` directly with no `run_traced_query` wrapper, so Phoenix had no
+trace_id to look it up by and `log_retrieval_annotations_to_phoenix` was never called for it — the
+"Before/after comparison" section's Phoenix-visible contrast (needed for `retriever_fixed.png`,
+see below) silently didn't exist. Fixed by wrapping it in `run_traced_query` like the naive query,
+and adding a cell right after the comparison table that evaluates and logs its annotations too.
+That fix also caught a real bug: `DocumentRelevanceEvaluator.evaluate()` scores exactly one
+document per call (see its docstring — "Returns one Score"), but `fixed_query_engine` retrieves 2
+documents (`similarity_top_k=2`); the naive path never needed a loop since `top_k=1` always
+retrieves exactly one document. The fixed-response cell now calls `.evaluate()` once per retrieved
+document and joins their text for the faithfulness context. If `log_retrieval_annotations_to_phoenix`
+is ever called with a multi-document response elsewhere, check for this same shape mismatch.
+
+**`docs/screenshots/*.png` are real captures from one live run, not mockups** — generated via a
+scratchpad Node script driving headless Chrome (Puppeteer, reused from an existing global install
+rather than adding a new project dependency) against a real `px.launch_app()` instance populated by
+running the actual pipeline. If seed data, model output, or the Phoenix UI's own layout changes
+enough to make these stale, they need regenerating the same way; there is no committed script for
+this in the repo (kept as a one-off, like every other notebook-editing script in this project).
 
 The lab's actual conclusion deliberately rests on a **deterministic** check
 (`deterministic_deprecation_check`, a plain metadata-set intersection), not the LLM judges. The

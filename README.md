@@ -133,8 +133,12 @@ and, for cloud mode, `OPENAI_API_KEY`. Then run:
 
 ```bash
 uv sync
-uv run jupyter notebook notebooks/rag_confluence_failure_diagnosis.ipynb
+uv run jupyter notebook --notebook-dir=. notebooks/rag_confluence_failure_diagnosis.ipynb
 ```
+
+`--notebook-dir=.` matters: without it, Jupyter roots its file server on the notebook's own
+folder, and the notebook's screenshot links (`../docs/screenshots/...`) point outside that root
+and show up as broken images.
 
 In the notebook's config cell, set `LOCAL_MODE = True` (the default) or `False`. This switches
 both the model that writes answers and the model that judges them, between Ollama and OpenAI.
@@ -151,6 +155,8 @@ for in the Phoenix UI.
    Phoenix tracing (starts the Phoenix server here — open the link now and keep the tab open for
    the rest of the lab), and Phoenix evals. If you're new to RAG or Phoenix, don't skip this —
    every object and pattern it builds gets reused, unchanged, for the rest of the lab.
+
+   ![The Phoenix trace list after a full run, with named traces like exercise1_naive_trigger visible among the smaller traces LlamaIndex creates on its own](docs/screenshots/trace_list.png)
 3. **Run "Confluence ingestion"** (section 4). This pulls the 19 dummy wiki pages and marks two
    of them, on purpose, as deprecated.
 4. **Run "Naive index construction"** (section 5). This builds the index at
@@ -161,18 +167,28 @@ for in the Phoenix UI.
 6. **Switch to Phoenix and open the trace.** Find the trace named `exercise1_naive_trigger`,
    open it, and click the `VectorIndexRetriever.retrieve` span. You will see the retrieved
    page's title and text right there on the span.
+
+   ![The retriever span's Info tab, showing the actual retrieved page text and Phoenix's Retrieval Metrics card](docs/screenshots/retriever_naive.png)
+
 7. **Run "Evals"** (section 8). This scores the retrieved page and the answer with an LLM
    judge, and also runs a plain code check against a known list of stale pages. Watch the
    printed output: the judge often calls the answer relevant and faithful, while the code
    check fails it.
-8. **Refresh the Phoenix trace.** The same span you opened in step 6 now carries
-   `document_relevance`, `deprecation_check`, and `faithfulness` annotations. This is the trap,
-   made visible: two judges disagree, and the plain check is the one telling the truth.
+8. **Refresh the Phoenix trace.** The same span you opened in step 6 now carries a
+   `document_relevance` result (rolled up into the Retrieval Metrics card above) and the root
+   span carries `faithfulness` — both durable and UI-visible. The plain code check,
+   `deprecation_check`, has no matching widget in Phoenix (it only recognizes
+   `document_relevance` by name); its result stays visible in the printed cell output, and
+   that gap between what the tool shows and what your code actually checked is worth noticing
+   on its own.
 9. **Read "Diagnosis"** (section 9) for a plain account of what went wrong and why the judge
    missed it.
 10. **Do Exercise 1** (section 10). Add a metadata filter that drops deprecated pages, then run
     the same query again. Check Phoenix for the new trace: the retriever span now points at the
-    current page, and its `deprecation_check` annotation should read "current."
+    current page.
+
+    ![The fixed trace's retriever span, showing the current page retrieved instead](docs/screenshots/retriever_fixed.png)
+
 11. **Read "Before/after comparison"** (section 11) for both runs side by side in one table.
 12. **Do Exercise 2 on your own** (section 12) — the same steps above, but for the
     password-reset trap, with no worked example to lean on.
