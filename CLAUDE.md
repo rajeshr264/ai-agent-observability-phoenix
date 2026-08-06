@@ -78,8 +78,8 @@ title-normalization (strips literal `#`/`##`/emoji artifacts from hand-pasted Ma
 current page and self-correct, hiding the failure).
 
 **Section 3 ("Warm-up: meet the building blocks") is where LlamaIndex, Phoenix tracing, and
-Phoenix evals each get demonstrated once on a throwaway 3-document toy corpus, before section 4
-touches real Confluence data.** `tracer`, `client`, `relevance_evaluator`, and
+Phoenix evals each get demonstrated once on a throwaway 3-document warm-up corpus (`warmup_docs`),
+before section 4 touches real Confluence data.** `tracer`, `client`, `relevance_evaluator`, and
 `faithfulness_evaluator` are all built exactly once, in section 3 — every later section reuses
 these same objects, it never reinstantiates them. Do not add a second `register()`/`.instrument()`
 call or a second evaluator instantiation anywhere past section 3; either would be redundant at
