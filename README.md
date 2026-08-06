@@ -57,7 +57,8 @@ Here is the flow, from wiki page to judged answer:
  TRIGGER QUERY  ──────────────────────────► │  step below in one OTel span,
  e.g. "What is the current procedure          so all spans share one trace_id
   for failing over our primary database?"   └─
-      │
+      │  embed  (same model as above — corpus and query must match, or
+      │          "closest" stops meaning anything)
       ▼
  RETRIEVER  → picks the top-scoring page (may be the stale one)
       │
@@ -89,6 +90,13 @@ Here is the flow, from wiki page to judged answer:
 The generation model and the judge model are never the same model in local
 mode (`qwen2.5` writes, `gemma2:9b` judges) — a model should not grade
 its own work.
+
+Phoenix's tracing here rests on OpenTelemetry, the open, vendor-neutral standard behind most
+observability tooling — not something built just for Phoenix, and not specific to LLM apps
+either. The notebook's section 3.2 walks through this stack (OpenTelemetry, then Arize's
+LLM-specific OpenInference layer on top of it, then Phoenix as the backend reading both) — worth
+learning on its own terms, since the same vocabulary and API carry over to any other
+OpenTelemetry-backed observability tool.
 
 ### Prerequisites
 
@@ -138,8 +146,11 @@ for in the Phoenix UI.
 
 1. **Run "Setup & install" and "Configuration"** (sections 1-2). This installs packages and
    sets `LOCAL_MODE`.
-2. **Run "Phoenix instrumentation"** (section 3). This starts the Phoenix server and prints a
-   link. Open that link now and keep the tab open for the rest of the lab.
+2. **Run "Warm-up: meet the building blocks"** (section 3). On three throwaway sentences, not
+   the real wiki, it walks through LlamaIndex (build an index, query it, filter by metadata),
+   Phoenix tracing (starts the Phoenix server here — open the link now and keep the tab open for
+   the rest of the lab), and Phoenix evals. If you're new to RAG or Phoenix, don't skip this —
+   every object and pattern it builds gets reused, unchanged, for the rest of the lab.
 3. **Run "Confluence ingestion"** (section 4). This pulls the 19 dummy wiki pages and marks two
    of them, on purpose, as deprecated.
 4. **Run "Naive index construction"** (section 5). This builds the index at

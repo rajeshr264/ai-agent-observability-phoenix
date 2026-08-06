@@ -50,14 +50,17 @@ an empty dataframe as the symptom.
 
 ## Architecture / notebook flow
 
-14 numbered sections, config-driven by two toggles in the "Configuration" cell:
+15 numbered sections, config-driven by two toggles in the "Configuration" cell:
 
 - `LOCAL_MODE` (`True`/`False`) — switches the generation LLM, embedding model, *and* eval judge
   between Ollama (`qwen2.5` / `nomic-embed-text` / `gemma2:9b`) and OpenAI
   (`gpt-4o-mini` / `text-embedding-3-small` / `gpt-4o-mini`). The judge is deliberately a **different**
   model from the generator in local mode (`gemma2:9b` vs `qwen2.5`) — using the same model to
   judge its own output is self-preference bias, one of the reliability problems this lab exists to
-  demonstrate.
+  demonstrate. **This only holds in `LOCAL_MODE`** — in cloud mode `gpt-4o-mini` plays both roles,
+  a documented compromise of the alternate path (see section 2's markdown), not an oversight. Keep
+  this distinction accurate in any future edit; don't let "always different" language creep back
+  in for cloud mode.
 - Confluence credentials, loaded from `.env` via `load_dotenv()`, with interactive prompt fallback.
 
 Pipeline shape: `ConfluenceReader` (Basic Auth: `user_name=`/`password=`, **not** `api_token=` — the
@@ -67,11 +70,34 @@ title-normalization (strips literal `#`/`##`/emoji artifacts from hand-pasted Ma
 `similarity_top_k=1` (deliberately narrow — `top_k=2` lets the model see both the deprecated and
 current page and self-correct, hiding the failure).
 
+**Section 3 ("Warm-up: meet the building blocks") is where LlamaIndex, Phoenix tracing, and
+Phoenix evals each get demonstrated once on a throwaway 3-document toy corpus, before section 4
+touches real Confluence data.** `tracer`, `client`, `relevance_evaluator`, and
+`faithfulness_evaluator` are all built exactly once, in section 3 — every later section reuses
+these same objects, it never reinstantiates them. Do not add a second `register()`/`.instrument()`
+call or a second evaluator instantiation anywhere past section 3; either would be redundant at
+best and may error at worst (OpenInference instrumentors are not designed to be attached twice).
+LlamaIndex also ships an older one-line Phoenix integration
+(`llama_index.core.set_global_handler("arize_phoenix")`, from
+`llama-index-callbacks-arize-phoenix`) — deliberately not used here, since it doesn't expose the
+manual trace_id/span control `run_traced_query`/`find_retriever_span` depend on; don't "simplify"
+tracing back to it.
+
 **Tracing: `phoenix.otel.register()` is load-bearing, not optional.** `px.launch_app()` alone does
 *not* wire up a global `TracerProvider` — spans silently never export (confirmed empirically: 0 rows
 from `get_spans_dataframe()` without `register()`, real rows with it). The instrumentation cell must
 call `register(project_name=..., auto_instrument=False)` and pass the resulting `tracer_provider`
 explicitly into `LlamaIndexInstrumentor().instrument(...)`.
+
+**Three layers, easy to conflate: OpenTelemetry, OpenInference, Phoenix.** OpenTelemetry is the
+vendor-neutral tracing standard (`TracerProvider`, spans, trace/span IDs) — nothing about it is
+LLM-specific, and `run_traced_query`'s `tracer.start_as_current_span()`/`span.get_span_context()`
+calls are plain OTel API, portable to any OTel backend. OpenInference is Arize's semantic-
+convention layer on top of OTel, specific to LLM/RAG spans — it defines what attributes like
+`retrieval.documents.0.document.content` mean, and is what `LlamaIndexInstrumentor` actually emits.
+Phoenix is the backend/UI consuming both, wired up via `phoenix.otel.register()`'s OTLP exporter.
+Section 3.2 in the notebook teaches this stack explicitly (a trainee-facing addition, not just an
+implementation note) — keep it accurate in any future edit to the tracing setup.
 
 **Trace correlation uses manual spans, not "most recent row."** `run_traced_query(query_engine,
 query_str, span_name)` wraps each trigger query in a manually-started OTel span and returns
